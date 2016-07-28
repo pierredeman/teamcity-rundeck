@@ -5,6 +5,10 @@ import jetbrains.buildServer.serverSide.BasePropertiesModel
 import jetbrains.buildServer.serverSide.TeamCityProperties
 import jetbrains.buildServer.util.PropertiesUtil
 import java.io.File
+import java.security.SecureRandom
+import java.security.cert.X509Certificate
+import javax.net.ssl.SSLContext
+import javax.net.ssl.X509TrustManager
 
 /**
  * Created by hadihariri on 24/09/15.
@@ -54,14 +58,33 @@ public object RunDeck {
     }
 
     private fun run(rundeckOptions: RunDeckOptions): Int {
-        val rundeckAPI = RunDeckAPI(rundeckOptions.url, rundeckOptions.authToken)
+        val trustAllCerts = arrayOf(object : X509TrustManager {
+            override fun checkClientTrusted(p0: Array<out X509Certificate>?, p1: String?) {
+            }
+
+            override fun checkServerTrusted(p0: Array<out X509Certificate>?, p1: String?) {
+            }
+
+            override fun getAcceptedIssuers(): Array<out X509Certificate> {
+                return emptyArray()
+            }
+
+        })
+
+        // Install the all-trusting trust manager
+        val sslContext = SSLContext.getInstance("SSL")
+        sslContext.init(null, trustAllCerts, SecureRandom())
+        // Create an ssl socket factory with our all-trusting manager
+        val sslSocketFactory = sslContext.getSocketFactory();
+
+        val rundeckAPI = RunDeckAPI(rundeckOptions.url, rundeckOptions.authToken, sslSocketFactory)
         val execution = rundeckAPI.executeJob(rundeckOptions.jobId, rundeckOptions.jobOptions, rundeckOptions.filters)
         println(ServiceMessage.asString("rundeck", mapOf("text" to "Starting RunDeck Job ${rundeckOptions.jobId}", "status" to "NORMAL")))
         var counter: Long = 0
         if (execution.code == 200) {
             println(ServiceMessage.asString("rundeck", mapOf("text" to "Job ${rundeckOptions.jobId} launched successfully with id ${execution.result}", "status" to "NORMAL")))
             if (rundeckOptions.waitFinish) {
-                while (counter < 100){
+                while (counter < 100) {
                     val status = rundeckAPI.jobStatus(execution.result)
                     if (status.code == 200 && status.execCompleted) {
                         println(ServiceMessage.asString("rundeck", mapOf("text" to "RunDeck Job completed with status ${status.execState}", "status" to "NORMAL")))
@@ -72,7 +95,7 @@ public object RunDeck {
                         }
                     }
                     counter += 1
-                    Thread.sleep((5000*counter))
+                    Thread.sleep((5000 * counter))
                 }
             } else {
                 println(ServiceMessage.asString("rundeck", mapOf("text" to "Not waiting for job to finish", "status" to "NORMAL")))

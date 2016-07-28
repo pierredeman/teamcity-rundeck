@@ -5,11 +5,12 @@ import com.squareup.okhttp.Request
 import jetbrains.buildServer.util.FileUtil
 import java.io.StringReader
 import java.net.URLEncoder
+import javax.net.ssl.SSLSocketFactory
 
 /**
  * Created by hadihariri on 05/10/15.
  */
-public class RunDeckAPI(val host: String, val authToken: String) {
+public class RunDeckAPI(val host: String, val authToken: String, val sslSocketFactory: SSLSocketFactory = SSLSocketFactory.getDefault() as SSLSocketFactory) {
 
 
     private fun createRequestUrl(action: String, query: String): String {
@@ -27,6 +28,7 @@ public class RunDeckAPI(val host: String, val authToken: String) {
             query += "&filter=${URLEncoder.encode(filters, "utf-8")}"
         }
         val client = OkHttpClient()
+        client.setSslSocketFactory(sslSocketFactory)
         val request = Request.Builder()
                 .url(createRequestUrl("job/$jobId/run", query))
                 .build()
@@ -52,6 +54,7 @@ public class RunDeckAPI(val host: String, val authToken: String) {
     // TODO: Need to parse entries
     fun jobStatus(executionId: String): RunDeckJobStatusResponse {
         val client = OkHttpClient()
+        client.setSslSocketFactory(sslSocketFactory)
         val request = Request.Builder()
                 .url(createRequestUrl("execution/$executionId/output", ""))
                 .build()
